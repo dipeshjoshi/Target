@@ -1,0 +1,43 @@
+STORE PRICE DOMAIN
+
+Data sources :
+  transactional data  ->  prd_ssl_fnd.mdse_slstr_item_line
+  new data source     ->  prd_price_ent.selling_rtl_schema
+
+mdse_item_i to tcin mapping :
+prd_sho_item.ecom_item
+
+prd_sho_fnd.mdse_item_key_lkup  [WRONG]
+
+
+
+For Historical Data :
+1. Location level : [stg_dfe_slshist.store_price_history_loc_week]
+      Using both the sources (transactional data + new data source) Running in production
+2. Weekly level   : [prd_dfe_slshist.store_price_history_chain_week]
+      Using only transactional data. Already in production.
+
+For Future :
+1.
+
+
+
+
+
+
+
+
+store_price_history_loc_week :
+
+mdse_item_i         	   int                 	The data warehouse system generated surrogate key for a Merchandise Item
+co_loc_i            	   int                 	The data warehouse system generated surrogate key for a Company Location.
+med_own_retl_a      	   double              	Median over own_retl_a across all stores. See source table prd_ssl_fnd.mdse_slstr_item_line for details on own_retl_a.
+med_reg_retl_a      	   double              	Median over reg_retl_a across all stores. See source table prd_ssl_fnd.mdse_slstr_item_line for details on reg_retl_a.
+med_customer_paid_price	 double              Median over ext_sls_prc_a across all stores. See source table prd_ssl_fnd.mdse_slstr_item_line for details on ext_sls_prc_a.
+wt_own_retl_a       	   double              	Average of own_retl_a across all days in the week and all stores, weighted by quantity sls_unit_q.
+wt_reg_retl_a       	   double              	Average of reg_retl_a across all days in the week and all stores, weighted by quantity sls_unit_q.
+wt_customer_paid_price	 double              Average of ext_sls_prc_a across all days in the week and all stores, weighted by quantity sls_unit_q.
+avg_reg_retail      	   double              	Average over reg_retail across all days in the week. See source table prd_price_ent.selling_rtl_schema for details on reg_retail.
+avg_current_retail  	   double              	Average over current_retail across all days in the week. See source table prd_price_ent.selling_rtl_schema for details on current_retail.
+week_start_date     	   string              	Week start date (Sunday) in YYYY-MM-DD format
+week_end_date       	   string              	Week end date (Saturday) in YYYY-MM-DD format

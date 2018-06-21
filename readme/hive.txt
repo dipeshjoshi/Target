@@ -1,0 +1,4 @@
+hive configuration parameters
+
+1. set hive.auto.convert.join=false; {To ignore mapside join}
+2. set hive.cli.print.header=true; {To add columns in result}

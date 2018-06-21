@@ -1,0 +1,22 @@
+Theano
+pip install --upgrade --no-deps git+git://github.com/Theano/Theano.git
+
+
+Tensorflow
+#add Tensorflow in conda library
+conda create -n tensorflow python=3.6
+
+#Go inside tensorflow envirnoment
+source activate tensorflow
+
+#Now install Tensorflow
+for cpu
+export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/mac/cpu/tensorflow-1.8.0-py3-none-any.whl
+
+pip install --upgrade $TF_BINARY_URL
+
+#For coming out of tensorflow envirnoment
+source deactivate
+
+Keras
+pip install --upgrade keras

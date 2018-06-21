@@ -1,0 +1,18 @@
+oozie job -config=workflow.properties -run -DstartTime='date +%Y-%m-%dT%H:%MZ' -oozie http://d-3zkzk02.target.com:11000/oozie
+
+
+0102533-171117112741146-oozie-oozi-W <jobId>
+
+
+
+hadoop fs -rm -r /user/Z001JV7/nif-ckf-forecast
+hadoop jar /usr/hdp/current/hadoop-mapreduce-client/hadoop-streaming.jar -file ckf -mapper ckf/ckf_mapper.py -reducer ckf/ckf_reducer.py -input /apps/hive/warehouse/z001jv7.db/temp_new_item_ckf_forecast_data_exp3 -numReduceTasks 100 -output /user/Z001JV7/nif-ckf-forecast
+
+
+hadoop jar /usr/hdp/current/hadoop-mapreduce-client/hadoop-streaming.jar -mapper /tmp/dip/nif_train_test/scoring/ckf_mapper.py -reducer /tmp/dip/nif_train_test/scoring/ckf_reducer_scoring.py -input /apps/hive/warehouse/temp_nif_train_score.db/temp_new_item_ckf_forecast_data_exp3_score -numReduceTasks 100 -output /user/Z001L92/temp-forecast
+
+# lisiting all coordinators 
+oozie jobs -oozie http://bigredoozie.target.com:11000/oozie -len 2000 -jobtype=coordinator -filter user=z001l92;status=RUNNING
+
+# To kill oozie workflow or coordinator :
+oozie job -oozie http://d-3zkzk02.target.com:11000/oozie -kill <wf_id>/<coord_id>

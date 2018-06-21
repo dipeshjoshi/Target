@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<workflow-app name="${JOB_NAME}" xmlns="uri:oozie:workflow:0.4">
+    <global>
+        <job-tracker>${jobTracker}</job-tracker>
+        <name-node>${nameNode}</name-node>
+        <configuration>
+            <property>
+                <name>mapreduce.job.queuename</name>
+                <value>${queueName}</value>
+            </property>
+            <property>
+                <name>mapreduce.job.reduce.slowstart.completedmaps</name>
+                <value>0.80</value>
+            </property>
+            <property>
+               <name>mapred.reduce.tasks</name>
+               <value>-1</value>
+            </property>
+            <property>
+                <name>tez.queue.name</name>
+                <value>${queueName}</value>
+            </property>
+        </configuration>
+    </global>
+    <credentials>
+        <credential name='hcat_creds' type='hcat'>
+            <property>
+                <name>hcat.metastore.uri</name>
+                <value>${metastore_uri}</value>
+            </property>
+            <property>
+                <name>hcat.metastore.principal</name>
+                <value>${metastore_principal}</value>
+            </property>
+        </credential>
+    </credentials>
+    <start to="WfMonitorAPI_Begin" />
+  
+    <action name="WfMonitorAPI_Begin" cred="hcat_creds">
+        <shell xmlns="uri:oozie:shell-action:0.1">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <exec>wf_monitor_api_begin.sh</exec>
+            <argument>${wf:name()}</argument>
+            <argument>${wf:id()}</argument>
+            <argument>${wf:appPath()}</argument>
+            <argument>${wf:actionData('WfMonitorAPI_Begin')['WF_BEGIN_TIME']}</argument>
+            <argument>${DFE_WF_MONITOR_DB}</argument>
+            <argument>${DFE_WF_MONITOR_DB_DIR}</argument>
+            <argument>${HIVE_FCST_DB}</argument>
+            <argument>${wf:user()}</argument>
+            <argument>${wf:lastErrorNode()}</argument>
+            <argument>${wf:errorCode(wf:lastErrorNode())}</argument>
+            <argument>${wf:errorMessage(wf:lastErrorNode())}</argument>
+            <argument>${queueName}</argument>
+            <file>wf_monitor_api_begin.sh</file>
+            <capture-output />
+        </shell>
+        <ok to="Create_External_Table" />
+        <error to="NotifyFailure" />
+    </action>
+    
+    <action name="Create_External_Table" cred="hcat_creds">
+        <hive xmlns="uri:oozie:hive-action:0.2">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <configuration>
+                <property>
+                    <name>mapred.job.queue.name</name>
+                    <value>${queueName}</value>
+                </property>
+            </configuration>
+            <script>createTableTrain.hql</script>
+            <param>ARIMAX_DB=${HIVE_FCST_DB}</param>
+            <param>ARIMAX_DB_DIR=${HIVE_FCST_DB_DIR}</param>
+            <param>TRAIN_INPUT_TABLE=${TRAIN_INPUT_TABLE}</param>
+	    <param>SALES_HISTORY_TABLE=${SALES_HISTORY_TABLE}</param>
+            <param>CALENDAR_BTS_TABLE=${CALENDAR_BTS_TABLE}</param>
+            <param>CALENDAR_CHRISTMAS_TABLE=${CALENDAR_CHRISTMAS_TABLE}</param>
+        </hive>
+        <ok to="Arima_model_training"/>
+        <error to="NotifyFailure"/>
+    </action>
+    
+
+
+    <action name="Arima_model_training" cred="hcat_creds">
+      <shell xmlns="uri:oozie:shell-action:0.1">
+        <job-tracker>${jobTracker}</job-tracker>
+        <name-node>${nameNode}</name-node>
+        <exec>arimax_training.sh</exec>
+	<argument>${TRAIN_INPUT_DIR}</argument>
+        <argument>${queueName}</argument>
+        <argument>${MODEL_PATH}</argument>
+        <file>arimax_training.sh</file>
+        <file>arimax_training_mapper.R</file>
+        <file>arimax_training_reducer.R</file>
+      </shell>
+      <ok to="Merge_mapping_files" />
+      <error to="NotifyFailure" />
+    </action>
+    
+
+    <action name="Merge_mapping_files" cred="hcat_creds">
+      <shell xmlns="uri:oozie:shell-action:0.1">
+        <job-tracker>${jobTracker}</job-tracker>
+        <name-node>${nameNode}</name-node>
+        <exec>merge_mapping.sh</exec>
+	<argument>${MODEL_PATH}</argument>
+        <argument>${queueName}</argument>
+        <file>merge_mapping.sh</file>
+      </shell>
+      <ok to="modelObjMgmt" />
+      <error to="NotifyFailure" />
+    </action> 
+
+
+    <action name="modelObjMgmt" cred="hcat_creds">
+         <fs>
+	    <delete path="${MODEL_DIR}/${currDateTime}" />
+            <mkdir path="${MODEL_DIR}"/>
+            <mkdir path="${MODEL_DIR}/${currDateTime}" />
+            <move source="${MODEL_PATH}" target="${MODEL_DIR}/${currDateTime}"/>
+            <chmod path="${MODEL_DIR}/${currDateTime}/*" permissions='-rwxrwxrwx'/>
+        </fs>
+        <ok to="KeepOnlyLastThreeModels"/>
+        <error to="NotifyFailure"/>
+    </action> 
+
+
+    <action name="KeepOnlyLastThreeModels" cred="hcat_creds">
+        <shell xmlns="uri:oozie:shell-action:0.1">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <exec>model_cleaner.sh</exec>
+            <argument>${MODEL_DIR}</argument>
+            <file>model_cleaner.sh</file>
+            <capture-output/>
+        </shell>
+        <ok to="NotifySuccess" />
+        <error to="NotifyFailure" />
+    </action>
+
+
+ 
+    <action name="NotifySuccess">
+        <email xmlns="uri:oozie:email-action:0.1">
+            <to>${EMAIL_LIST}</to>
+            <subject>${wf:name()} ${wf:id()} ran successfully.</subject>
+            <body></body>
+        </email>
+        <ok to="WfMonitorAPI_End" />
+        <error to="NotifyFailure" />
+    </action>
+
+    <action name="WfMonitorAPI_End" cred="hcat_creds">
+        <shell xmlns="uri:oozie:shell-action:0.1">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+            <exec>wf_monitor_api_end.sh</exec>
+            <argument>${wf:name()}</argument>
+            <argument>${wf:id()}</argument>
+            <argument>${wf:appPath()}</argument>
+            <argument>${wf:actionData('WfMonitorAPI_Begin')['WF_BEGIN_TIME']}</argument>
+            <argument>${DFE_WF_MONITOR_DB}</argument>
+            <argument>${HIVE_FCST_DB}</argument>
+            <argument>${wf:user()}</argument>
+            <argument>${wf:lastErrorNode()}</argument>
+            <argument>${wf:errorCode(wf:lastErrorNode())}</argument>
+            <argument>${wf:errorMessage(wf:lastErrorNode())}</argument>
+            <argument>${queueName}</argument>
+            <file>wf_monitor_api_end.sh</file>
+            <capture-output />
+        </shell>
+        <ok to="WriteDoneFlag" />
+        <error to="NotifyFailure" />
+    </action>
+
+    <action name="WriteDoneFlag">
+        <fs>
+            <mkdir path="${outputFlagDir}" />
+            <touchz path="${outputFlagDir}/${JOB_NAME}.ready" />
+        </fs>
+        <ok to="end" />
+        <error to="NotifyFailure" />
+    </action>
+
+    <!-- train and save time-series model -->
+    <action name="NotifyFailure">
+        <email xmlns="uri:oozie:email-action:0.1">
+            <to>${EMAIL_LIST}</to>
+            <subject>${wf:name()} ${wf:id()} failed.</subject>
+            <body></body>
+        </email>
+        <ok to="fail" />
+        <error to="fail" />
+    </action>
+
+   <kill name="fail">
+      <message>Workflow failed, error message[${wf:errorMessage(wf:lastErrorNode())}]</message>
+   </kill>
+	
+   <end name = "end" />
+</workflow-app>

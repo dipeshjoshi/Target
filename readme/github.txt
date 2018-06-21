@@ -1,0 +1,26 @@
+1. For pulling any repository on machine.
+git clone "Link of the project"
+
+2. Difference between code on local machine and git repository.
+git status
+
+3. Adding changes to git project
+git add "file name to be added"
+
+4. For locking changes on local machine for git repository
+git commit -m "type your message here."
+
+5. For pushing your changes from local machine to git repository
+git push
+
+6. To check all branches and current branch
+git branch
+
+7. To create new branch
+git branch <branch name>
+
+8. To go with in some branch
+git checkout <branch name>
+
+9. To add new branch
+git push origin <branch name>
